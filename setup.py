@@ -20,5 +20,9 @@ setup(
         'console_scripts': [
             'screenshare=screenshare:main',
         ],
+    },
+    
+    project_urls={
+        'Source': 'https://github.com/matthias95/screenshare'
     }
 )
