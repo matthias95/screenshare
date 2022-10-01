@@ -19,6 +19,8 @@ def main():
     parser.add_argument('--port', type=int, default=DEFAUL_PORT, help='Port of the display server')
     parser.add_argument('--compression', choices=['jpg', 'png'], default='jpg', help='Image compression used for streaming')
 
+    parser.add_argument('--scale', type=float, default=None, help='Resolution scaling')
+
     args = parser.parse_args()
     
 
@@ -144,8 +146,13 @@ def main():
                         screen_shot = sct.grab(sct.monitors[keyboard_state.selected_monitor_idx])
 
                         img = np.uint8(screen_shot)[...,:3]
+                        
+                        if args.scale is not None:
+                            scale = args.scale 
+                        else:
+                            scale = 1080 / img.shape[0]
 
-                        img = cv2.resize(img, (0,0), fx=0.5, fy=0.5)
+                        img = cv2.resize(img, (0,0), fx=scale, fy=scale)
                         
                         bytes_array = img_to_bytes(img)
                         
