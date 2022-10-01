@@ -16,11 +16,8 @@ jobs:
             
       - name: build
         run: |
-          git rev-list --count HEAD
           python3 -m pip install --upgrade -q pip
           python3 -m pip install --upgrade -q build twine
-          ls -la 
-          git status 
           export COMMIT_CNT=`git rev-list --count HEAD` && python3 -c "import datetime; import os; v=datetime.datetime.utcnow().strftime('%y.%m.'); commit_cnt = os.environ['COMMIT_CNT']; print('__version__ = ' + f'\'{v}{commit_cnt}\'')" > ./src/screenshare/_version.py
           python3 -m build
           
