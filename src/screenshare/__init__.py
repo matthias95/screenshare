@@ -2,10 +2,9 @@ from pynput import keyboard
 from mss import mss
 import cv2
 import numpy as np
-
 import argparse
 import socket
-import time
+
 
 from ._version import __version__
 
@@ -26,7 +25,13 @@ def main():
 
     if args.host is None:
         hostname = socket.gethostname()   
-        ip = socket.gethostbyname(hostname)   
+
+        ip = hostname
+        try:
+            ip = socket.gethostbyname(hostname)   
+        except Exception as ex:
+            pass
+
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(('8.8.8.8', 80))
@@ -116,11 +121,12 @@ def main():
 
         digit_keys = [keyboard.KeyCode(char=str(i)) for i in range(10)]
         f_keys = [keyboard.Key.f9, keyboard.Key.f10, keyboard.Key.f11, keyboard.Key.f12]
-        
+        hotkeys = {key:idx for idx, key in sum([list(enumerate(keys)) for keys in [digit_keys, f_keys]], [])} 
+
         def on_press(key):
             keyboard_state.pressed_keys.add(key)
-            if keyboard.Key.alt_l in keyboard_state.pressed_keys and key in f_keys:
-                selected_monitor_idx = f_keys.index(key)
+            if keyboard.Key.alt_l in keyboard_state.pressed_keys and key in hotkeys:
+                selected_monitor_idx = hotkeys[key]
                 if selected_monitor_idx != keyboard_state.selected_monitor_idx:
                     keyboard_state.selected_monitor_idx = selected_monitor_idx
                     print('Start streaming')
@@ -138,6 +144,30 @@ def main():
         print('This is the Streaming Server')
         print('Press alt + [F9-F12] to toggle streaming your screens')
 
+
+        class ROISelectorState:
+            def __init__(self):
+                self.p1 = None
+                self.p2 = None
+                self.is_moving = False
+
+        roi_selector_state = ROISelectorState()
+
+        def on_mouse(event, x, y, flags, userdata):
+            if event == cv2.EVENT_LBUTTONDOWN:
+                roi_selector_state.p1 = (x,y)
+                roi_selector_state.is_moving = True
+                    
+            elif event == cv2.EVENT_MOUSEMOVE and roi_selector_state.is_moving:
+                roi_selector_state.p2 = (x,y)
+            elif event == cv2.EVENT_LBUTTONUP:
+                roi_selector_state.p2 = (x,y)
+                roi_selector_state.is_moving = False
+                
+            if event == cv2.EVENT_RBUTTONUP:
+                roi_selector_state.p1, roi_selector_state.p2 = None, None
+                roi_selector_state.is_moving = False
+
         with mss() as sct:
             while True:
                 try:
@@ -145,25 +175,51 @@ def main():
                         
                         screen_shot = sct.grab(sct.monitors[keyboard_state.selected_monitor_idx])
 
-                        img = np.uint8(screen_shot)[...,:3]
+                        img = np.uint8(screen_shot)[...,:3].copy()
                         
                         if args.scale is not None:
                             scale = args.scale 
                         else:
                             scale = 1080 / img.shape[0]
 
-                        img = cv2.resize(img, (0,0), fx=scale, fy=scale)
                         
-                        bytes_array = img_to_bytes(img)
+                        
+                        if roi_selector_state.p1 is not None and roi_selector_state.p2 is not None:
+                            x_min = np.clip(min(roi_selector_state.p1[0], roi_selector_state.p2[0]), 0, img.shape[1])
+                            y_min = np.clip(min(roi_selector_state.p1[1], roi_selector_state.p2[1]), 0, img.shape[0])
+                            x_max = np.clip(max(roi_selector_state.p1[0], roi_selector_state.p2[0]), 0, img.shape[1])
+                            y_max = np.clip(max(roi_selector_state.p1[1], roi_selector_state.p2[1]), 0, img.shape[0])
+                            
+                            if (x_max - x_min) < 10:
+                                x_max += 10 - (x_max - x_min)
+                            if (y_max - y_min) < 10:
+                                y_max += 10 - (y_max - y_min)
+                            img_roi = img[y_min:y_max+1, x_min:x_max+1].copy()
+
+                            img = cv2.rectangle(img.copy(), roi_selector_state.p1, roi_selector_state.p2, 255, 2)
+
+                        else:
+                            img_roi = img
+                        
+                        img_resized = cv2.resize(img_roi, (0,0), fx=scale, fy=scale)
+
+                        bytes_array = img_to_bytes(img_resized)
                         
                         send_bytes(np.int32(len(bytes_array)).tobytes() + bytes_array, ip=host, port=args.port)
                         
-                        time.sleep(1/60)
+                        cv2.namedWindow('select_roi', cv2.WINDOW_NORMAL)
+                        cv2.setMouseCallback('select_roi', on_mouse)
+                        cv2.imshow('select_roi', img)
+                        cv2.waitKey(10)
+                    else:
+                        cv2.destroyAllWindows()
                 except KeyboardInterrupt as ex:
                     exit()
                 except socket.timeout as ex:
-                    pass
+                    cv2.destroyAllWindows()
                 except Exception as ex:
+                    cv2.destroyAllWindows()
                     print(ex)
-                    
+            
+
                     
