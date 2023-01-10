@@ -246,7 +246,18 @@ def main():
                             mouse_y = mouse_state.y - selected_monitor['top']
 
                             if mouse_x >= 0 and mouse_x < img.shape[1] and mouse_y >= 0 and mouse_y <= img.shape[0]:
-                                cv2.arrowedLine(img, (mouse_x+50, mouse_y+50), (mouse_x, mouse_y), (255,255,255), 4, line_type=cv2.LINE_AA, tipLength=0.4)
+                                color = img[mouse_y, mouse_x]
+                                luminance = (0.299 * color[2] + 0.587 * color[1] + 0.114 * color[0])/255
+                                if luminance < 0.5:
+                                    arrow_color=(255,255,255)
+                                    border_color = (0,0,0)
+                                else:
+                                    arrow_color=(0,0,0)
+                                    border_color = (255,255,255)
+
+
+                                cv2.arrowedLine(img, (mouse_x+50, mouse_y+50), (mouse_x, mouse_y), border_color, 8, line_type=cv2.LINE_AA, tipLength=0.4)
+                                cv2.arrowedLine(img, (mouse_x+50, mouse_y+50), (mouse_x, mouse_y), arrow_color, 4, line_type=cv2.LINE_AA, tipLength=0.4)
 
                         if roi_selector.has_roi:
                             x_min = roi_selector.x_min
