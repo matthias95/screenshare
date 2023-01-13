@@ -182,6 +182,7 @@ def main():
                 self._p1 = None
                 self._p2 = None
                 self._is_moving = False
+                self.force_aspect_ratio = False
 
             def clear_roi(self):
                 self._p1, self._p2 = None, None
@@ -191,15 +192,49 @@ def main():
                 if event == cv2.EVENT_LBUTTONDOWN:
                     self._p1 = (x,y)
                     self._is_moving = True
-                        
+                    self.force_aspect_ratio = False
+                    if flags == (cv2.EVENT_FLAG_LBUTTON + cv2.EVENT_FLAG_SHIFTKEY):
+                        self.force_aspect_ratio = True
+                        self.aspect_ratio = (16, 9)
+                    elif flags == (cv2.EVENT_FLAG_LBUTTON + cv2.EVENT_FLAG_ALTKEY):
+                        self.force_aspect_ratio = True
+                        self.aspect_ratio = (4, 3)
                 elif event == cv2.EVENT_MOUSEMOVE and self._is_moving:
                     self._p2 = (x,y)
+
+                    if self.force_aspect_ratio:
+                        self.clip_to_aspect_ratio()
                 elif event == cv2.EVENT_LBUTTONUP:
                     self._p2 = (x,y)
+                    if self.force_aspect_ratio:
+                        self.clip_to_aspect_ratio()
                     self._is_moving = False
-                    
-                if event == cv2.EVENT_RBUTTONUP:
+                elif event == cv2.EVENT_RBUTTONUP:
                     self.clear_roi()
+
+            def clip_to_aspect_ratio(self):
+                w_a, h_a = self.aspect_ratio
+                h = self.y_max - self.y_min
+                w = self.x_max - self.x_min
+                if w == 0 or h == 0:
+                    return
+
+                if (w / h) < (w_a / h_a):
+                    w = (w // w_a) * w_a
+                    h = (w // w_a) * h_a
+                else: 
+                    h = (h // h_a) * h_a
+                    w = (h // h_a) * w_a
+
+                x, y = self.p1
+                x2, y2 = self.p2
+
+                if x > x2:
+                    w = -w
+                if y > y2:
+                    h = -h
+
+                self._p2 = (x + w, y + h)
 
             @property
             def has_roi(self):
@@ -249,10 +284,10 @@ def main():
                                 color = img[mouse_y, mouse_x]
                                 luminance = (0.299 * color[2] + 0.587 * color[1] + 0.114 * color[0])/255
                                 if luminance < 0.5:
-                                    arrow_color=(255,255,255)
+                                    arrow_color = (255,255,255)
                                     border_color = (0,0,0)
                                 else:
-                                    arrow_color=(0,0,0)
+                                    arrow_color = (0,0,0)
                                     border_color = (255,255,255)
 
 
@@ -271,7 +306,7 @@ def main():
                                 y_max += 10 - (y_max - y_min)
                             img_roi = img[y_min:y_max+1, x_min:x_max+1].copy()
 
-                            img = cv2.rectangle(img.copy(), roi_selector.p1, roi_selector.p2, (0,255,0), 5)
+                            img = cv2.rectangle(img, roi_selector.p1, roi_selector.p2, (0,255,0), 15)
 
                         else:
                             img_roi = img
@@ -287,7 +322,7 @@ def main():
                         
                         send_bytes(np.int32(len(bytes_array)).tobytes() + bytes_array, ip=host, port=args.port)
                         
-                        cv2.namedWindow('select_roi', cv2.WINDOW_NORMAL)
+                        cv2.namedWindow('select_roi', cv2.WINDOW_GUI_NORMAL)
                         cv2.setMouseCallback('select_roi', roi_selector.on_mouse)
                         cv2.imshow('select_roi', img)
                         key = cv2.waitKey(10)
@@ -300,9 +335,8 @@ def main():
                     exit()
                 except socket.timeout as ex:
                     cv2.destroyAllWindows()
+                    print('socket timeout', roi_selector.x_min, roi_selector.x_max, roi_selector.y_min, roi_selector.y_max)
                 except Exception as ex:
                     cv2.destroyAllWindows()
                     print(ex)
             
-
-                    
