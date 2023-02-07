@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import argparse
 import socket
-
+import time 
 
 from ._version import __version__
 
@@ -71,9 +71,11 @@ def main():
             return res
 
         fullscreen = True
+        last_frame_timestamp = time.time()
         while True:
             try:
                 connection, client_address = sock.accept()
+                
                 connection.settimeout(1)
                 num_img_bytes = np.frombuffer(read_n_bytes(connection, 4), np.int32)[0]
                 
@@ -82,7 +84,7 @@ def main():
                 
                 img = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
                 
-                cv2.namedWindow('window', cv2.WINDOW_NORMAL )
+                cv2.namedWindow('window', cv2.WINDOW_NORMAL)
 
                 if fullscreen:
                     cv2.setWindowProperty('window', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
@@ -99,8 +101,11 @@ def main():
             except socket.timeout as ex:
                 cv2.destroyAllWindows()
             except Exception as ex:
-                cv2.destroyAllWindows()
+                if (time.time() - last_frame_timestamp) >= 5:
+                    cv2.destroyAllWindows()
                 print(ex)
+            else:
+                last_frame_timestamp = time.time()
     else:
 
         def send_bytes(bytes_array, ip, port):
@@ -266,6 +271,8 @@ def main():
 
         roi_selector = ROISelector()
 
+        last_frame_timestamp = time.time()
+
         with mss() as sct:
             while True:
                 try:
@@ -329,14 +336,18 @@ def main():
                         if key == 27: # ESC key
                             roi_selector.clear_roi()
 
+                        last_frame_timestamp = time.time()
                     else:
                         cv2.destroyAllWindows()
                 except KeyboardInterrupt as ex:
                     exit()
                 except socket.timeout as ex:
-                    cv2.destroyAllWindows()
+                    if (time.time() - last_frame_timestamp) > 5:
+                        cv2.destroyAllWindows()
                     print('socket timeout')
                 except Exception as ex:
-                    cv2.destroyAllWindows()
+                    if (time.time() - last_frame_timestamp) > 5:
+                        cv2.destroyAllWindows()
                     print(ex)
+
             
