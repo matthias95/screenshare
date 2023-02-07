@@ -335,7 +335,7 @@ def main():
                     exit()
                 except socket.timeout as ex:
                     cv2.destroyAllWindows()
-                    print('socket timeout', roi_selector.x_min, roi_selector.x_max, roi_selector.y_min, roi_selector.y_max)
+                    print('socket timeout')
                 except Exception as ex:
                     cv2.destroyAllWindows()
                     print(ex)
